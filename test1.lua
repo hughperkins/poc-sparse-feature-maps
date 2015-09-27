@@ -49,6 +49,16 @@ function torch.SparseTensor:__tostring__()
    return res
 end
 
+function torch.SparseTensor:add(second)
+   for s, d in ipairs(self.denseBySparse) do
+      local second_s = second.sparseByDense[d]
+      if second_s ~= nil then
+         self.planes[s]:add(second.planes[second_s])
+      end
+   end
+   return self
+end
+
 
 local a = torch.SparseTensor(3,8,3)
 a:set(2,4,1, 4.5)
@@ -65,8 +75,9 @@ print('a[2][4][1]', a:get3d(2,4,1))
 print('a', a)
 
 -- add
---local b = torch.SparseTensor(3,8,3)
---b:set(2,4,1, 7.2)
---a:add(b)
-
+local b = torch.SparseTensor(3,8,3)
+b:set(2,4,1, 7.2)
+print('b', b)
+a:add(b)
+print('a', a)
 
