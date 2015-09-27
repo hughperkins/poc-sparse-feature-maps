@@ -156,6 +156,15 @@ mlp.bias:zero()
 local out = mlp:forward(a)
 print('out', out)
 
-asparse = torch.SparseTensor.fromDense(a)
-print('asparse', asparse)
+a_sparse = torch.SparseTensor.fromDense(a)
+print('a_sparse', a_sparse)
+
+print('b:size()', b:size())
+print('b:numel()', b:numel())
+print('5*5*3*3', 5*5*3*3)
+b_view = b:view(5,5,3,3)
+print('b_view:size()', b_view:size())
+b_sparse = torch.SparseTensor.fromDense(b_view)
+print('b_sparse', b_sparse)
+
 
