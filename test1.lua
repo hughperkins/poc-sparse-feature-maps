@@ -45,6 +45,14 @@ function torch.SparseTensor:get1d(p)
    return self.planes[sparse]
 end
 
+function torch.SparseTensor:addPlane(p, plane)
+   local s = #self.planes + 1
+   self.planes[s] = plane:clone()
+   self.denseBySparse[s] = p
+   self.sparseByDense[p] = s
+   return self
+end
+
 function torch.SparseTensor:get3d(p, row, col)
    local sparse = self.sparseByDense[p]
    if sparse == nil then
@@ -60,6 +68,18 @@ function torch.SparseTensor:__tostring__()
       res = res .. self.planes[s]:__tostring__()
    end
    return res
+end
+
+function torch.SparseTensor.fromDense(dense, tolerance)
+   tolerance = tolerance or 0.000001
+   assert(dense:dim() == 3)
+   local sparse = torch.SparseTensor()
+   for d=1,dense:size(1) do
+      if dense[d]:clone():abs():max() >= tolerance then
+         sparse:addPlane(d,dense[d])
+      end
+   end
+   return sparse
 end
 
 function torch.SparseTensor:add(second)
@@ -135,4 +155,7 @@ mlp.bias:zero()
 
 local out = mlp:forward(a)
 print('out', out)
+
+asparse = torch.SparseTensor.fromDense(a)
+print('asparse', asparse)
 
