@@ -94,4 +94,32 @@ print('a', a)
 a:cmul(b)
 print('a', a)
 
+require 'nn'
+-- lets make a normal, non-sparse, 3d tensor, and another
+-- then, we'll fill it with random nubmers ('uniform'),then
+-- set some planes to zero
+-- then convolve those
+-- then do the same with a sparse version
+-- and compare
+
+a = torch.Tensor(5,3,4):uniform()
+a[2]:zero()
+a[4]:zero()
+--b = torch.Tensor(10,12,15):uniform()
+--a[3]:zero()
+--a[4]:zero()
+--a[6]:zero()
+--a[9]:zero()
+
+mlp = nn.SpatialConvolutionMM(5,5,3,3,1,1,1,1)
+-- hmmm.... b is ... weights?
+local b = mlp.weight
+b[1]:zero()
+b[2]:zero()
+b[5]:zero()
+mlp.bias:zero()
+-- remove bias, for simplicity
+
+local out = mlp:forward(a)
+print('out', out)
 
