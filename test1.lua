@@ -59,6 +59,15 @@ function torch.SparseTensor:add(second)
    return self
 end
 
+function torch.SparseTensor:cmul(second)
+   for s, d in ipairs(self.denseBySparse) do
+      local second_s = second.sparseByDense[d]
+      if second_s ~= nil then
+         self.planes[s]:cmul(second.planes[second_s])
+      end
+   end
+   return self
+end
 
 local a = torch.SparseTensor(3,8,3)
 a:set(2,4,1, 4.5)
@@ -80,4 +89,9 @@ b:set(2,4,1, 7.2)
 print('b', b)
 a:add(b)
 print('a', a)
+
+-- multiply by element
+a:cmul(b)
+print('a', a)
+
 
