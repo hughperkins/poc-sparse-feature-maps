@@ -7,6 +7,13 @@
 -- - we can continue to use stndard convolution code
 -- - dont need to mess around too much with coordinates, can reuse a lot of existing function sfor addition etc
 
+-- possible steps:
+-- - create basic per-plane sparse tensor
+-- - add add, mul
+-- - create a sparse convolutional layer
+-- - create some sort of basic sparse convolutonal network, just a layer or two
+-- - demonstrate that it learns better than a dense network with same number of parameters (this is obviously the hardest bit :-P)
+
 local SparseTensor = torch.class('torch.SparseTensor')
 
 function torch.SparseTensor:__init(planes, rows, cols)
