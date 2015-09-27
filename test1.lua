@@ -1,5 +1,11 @@
 -- might as well start in lua first....
 
+-- this tensor is 'per-plane', so each plane is fully dense, 2d, but we have a lookup table for the planes we 
+-- are actually storing.  all other planes are zero.
+
+-- this is just one of many possible sparse representations.  good points are:
+-- - we can continue to use stndard convolution code
+-- - dont need to mess around too much with coordinates, can reuse a lot of existing function sfor addition etc
 
 local SparseTensor = torch.class('torch.SparseTensor')
 
