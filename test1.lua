@@ -40,10 +40,33 @@ function torch.SparseTensor:get3d(p, row, col)
    return self.planes[sparse][row][col]
 end
 
+function torch.SparseTensor:__tostring__()
+   res = ''
+   for s, d in ipairs(self.denseBySparse) do
+      res = res .. 'feature plane ' .. d .. '\n'
+      res = res .. self.planes[s]:__tostring__()
+   end
+   return res
+end
 
 
 local a = torch.SparseTensor(3,8,3)
 a:set(2,4,1, 4.5)
 print('a[2]', a:get1d(2))
 print('a[2][4][1]', a:get3d(2,4,1))
+
+-- things we should be able to do with these:
+-- add them
+-- multiply them by elemenet
+-- SpatialConvolutionMM them
+-- (print them...)
+
+-- print
+print('a', a)
+
+-- add
+--local b = torch.SparseTensor(3,8,3)
+--b:set(2,4,1, 7.2)
+--a:add(b)
+
 
