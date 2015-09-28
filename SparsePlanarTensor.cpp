@@ -219,8 +219,9 @@ static void SPT_addPlane(SPT *self, THLongStorage *pcoord, THFloatTensor *second
   int dims = self->dims;
   int H = self->size[dims-2];
   int W = self->size[dims-1];
-  THFloatTensor *plane = THFloatTensor_newWithSize2d(H, W);
-  self->planes.push_back(plane);
+//  THFloatTensor *plane = THFloatTensor_newWithSize2d(H, W);
+  THFloatTensor_retain(second);
+  self->planes.push_back(second);
 }
 static int SPT_addPlane(lua_State *L) {
   SPT *self = getSPT(L, 1);
