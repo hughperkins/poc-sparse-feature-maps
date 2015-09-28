@@ -19,7 +19,6 @@ static THLongStorage *getLongStorageNoCheck(lua_State *L, int index) {
   void *longStorageVoid = luaT_toudata(L, index, "torch.LongStorage");
   return (THLongStorage *)longStorageVoid;
 }
-
 class SPT {
 public:
   int refCount;
@@ -33,6 +32,10 @@ public:
   ~SPT() {
   }
 };
+static SPT *getSPT(lua_State *L, int index) {
+  SPT *self = (SPT *)luaT_checkudata(L, index, "torch.SparsePlanarTensor");
+  return self;
+}
 static void SPT_rawInit(SPT *self) {
   self->refCount = 1;
 }
@@ -74,8 +77,7 @@ static int SPT_factory(lua_State *L) {
   return 0;
 }
 static int SPT_tostring(lua_State *L) {
-  SPT *self = (SPT *)luaT_checkudata(L, 1, "torch.SparsePlanarTensor");
-//  cout << "SPT_tostring()" << endl;
+  SPT *self = getSPT(L, 1);
   ostringstream oss;
   oss << "[torch.SparsePlanarTensor of size ";
   for(int d=0; d < self->dims; d++) {
@@ -88,9 +90,42 @@ static int SPT_tostring(lua_State *L) {
   lua_pushstring(L, oss.str().c_str());
   return 1;
 }
+//static int SPT_set3d(lua_State *L, int x1, int x2, int x3, float value) {
+static int SPT_set3d(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  int x1 = luaL_checkint(L, 2)-1;
+  int x2 = luaL_checkint(L, 3)-1;
+  int x3 = luaL_checkint(L, 4)-1;
+  float value = luaL_checknumber(L,5);
+
+  int d = x1;
+// lua version:
+//     local sparse = self.sparseByDense[p]
+//   if sparse == nil then
+//      sparse = #self.planes + 1
+//      self.denseBySparse[sparse] = p
+//      self.sparseByDense[p] = sparse
+//      self.planes[sparse] = torch.Tensor(self.rows, self.cols)
+//      self.planes[sparse]:fill(0)
+//   end
+//   self.planes[sparse][row][col] = value
+  if(self->dims != 3) {
+    THError("cant use set3d on non-3d tensor");
+  }
+  if(self->sparseByDense.find(d) == self->sparseByDense.end()) {
+     // create new plane
+     int s = self->planes.size();
+     self->denseBySparse[s] = d;
+     self->sparseByDense[d] = s;
+     self->planes.push_back(THFloatTensor_newWithSize2d(self->size[1], self->size[2]));
+  }
+  int s = self->sparseByDense.at(x1);
+  return 0;
+}
 
 static const struct luaL_Reg SPT_funcs [] = {
   {"__tostring__", SPT_tostring},
+  {"set3d", SPT_set3d},
 //  {"print", ClKernel_print},
 //  {"getRenderedKernel", ClKernel_getRenderedKernel},
 //  {"getRawKernel", ClKernel_getRawKernel},
