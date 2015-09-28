@@ -56,9 +56,9 @@ print('a', a)
 -- then do the same with a sparse version
 -- and compare
 
-a = torch.FloatTensor(5,3,4):uniform()
-a[2]:zero()
-a[4]:zero()
+a = torch.FloatTensor(1,5,3,4):uniform()
+a[1][2]:zero()
+a[1][4]:zero()
 --b = torch.Tensor(10,12,15):uniform()
 --a[3]:zero()
 --a[4]:zero()
@@ -94,5 +94,5 @@ print('b_view', b_view)
 print('=========')
 print('b_sparse', b_sparse)
 
-c_sparse = sparse_convolve(a_sparse, b_sparse)
+c_sparse = a_sparse:convolve(b_sparse)
 

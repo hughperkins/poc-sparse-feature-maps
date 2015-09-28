@@ -147,20 +147,10 @@ static int SPT_tostring(lua_State *L) {
       THLongStorage *dcoords = THLongStorage_newWithSize(2);
       int x0 = d / self->size[1];
       int x1 = d % self->size[1];
-//      THLongStorage_set(dcoords, 0, x0);
-//      THLongStorage_set(dcoords, 1, x1);
       THLongStorage_free(dcoords);
       oss << "(" << (x0+1) << "," << (x1+1) << ",.,.) =\n";
       oss << floatTensorToString(self->planes[s]);
     }
-// lua:
-//      for s, dlinear in ipairs(self.denseBySparse) do
-//         local dcoords = torch.LongStorage(2)
-//         dcoords[1] = dlinear / self.size[2]
-//         dcoords[2] = dlinear % self.size[2]
-//         res = res .. 'feature plane [' .. dcoords[1] .. '][' .. dcoords[2] .. ']\n'
-//         res = res .. self.planes[s]:__tostring__()
-//      end
   } else {
     THError("not implemented");
   }
@@ -215,9 +205,9 @@ static void SPT_addPlane(SPT *self, THLongStorage *pcoord, THFloatTensor *second
   int s = self->planes.size();
   self->denseBySparse[s] = linearIndex;
   self->sparseByDense[linearIndex] = s;
-  int dims = self->dims;
-  int H = self->size[dims-2];
-  int W = self->size[dims-1];
+//  int dims = self->dims;
+//  int H = self->size[dims-2];
+//  int W = self->size[dims-1];
 //  THFloatTensor *plane = THFloatTensor_newWithSize2d(H, W);
   THFloatTensor_retain(second);
   self->planes.push_back(second);
@@ -228,6 +218,24 @@ static int SPT_addPlane(lua_State *L) {
   THFloatTensor *second = getFloatTensor(L, 3); // probalby should support float too
   SPT_addPlane(self, pcoord, second);
   push(L, self);
+}
+static THFloatTensor *SPT_getPlane(SPT *self, THLongStorage *pcoord) {
+  int d = SPT_pcoordToLinear(self, pcoord);
+  if(self->sparseByDense.find(d) == self->sparseByDense.end()) {
+    return 0;
+  }
+  int s = self->sparseByDense[d];
+  return self->planes[s];
+}
+static int SPT_getPlane(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  THLongStorage *pcoord = getLongStorage(L, 2);
+  THFloatTensor *plane = SPT_getPlane(self, pcoord);
+  if(plane == 0) {
+    lua_pushnil(L);
+  } else {
+    push(L, plane);
+  }
 }
 static int SPT_copy(lua_State *L) {
   // for now, both the num elements, and the size must match
@@ -367,6 +375,18 @@ static int SPT_cmul(lua_State *L) {
   luaT_pushudata(L, self, "torch.SparsePlanarTensor");
   return 1;
 }
+static int SPT_convolve(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  SPT *second = getSPT(L, 2);
+
+  // make lots of assumptions....
+  // 'self' is an 'input' tensor, with 4 dimensions
+  // 'second' is a weight tensor, with 4 dimensions
+
+  THError("not implemented");
+  luaT_pushudata(L, self, "torch.SparsePlanarTensor");
+  return 1;
+}
 static const struct luaL_Reg SPT_funcs [] = {
   {"__tostring__", SPT_tostring},
   {"set3d", SPT_set3d},
@@ -376,7 +396,9 @@ static const struct luaL_Reg SPT_funcs [] = {
   {"add", SPT_add},
   {"cmul", SPT_cmul},
   {"addPlane", SPT_addPlane},
+  {"getPlane", SPT_getPlane},
   {"pcoordToLinear", SPT_pcoordToLinear},
+  {"convolve", SPT_convolve},
   {0,0}
 };
 void SparsePlanarTensor_init(lua_State *L) {
