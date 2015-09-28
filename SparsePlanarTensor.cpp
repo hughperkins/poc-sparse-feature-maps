@@ -435,6 +435,11 @@ static int SPT_convolve(lua_State *L) {
   int outPlanes = second->size[0];
   cout << inPlanes << "->" << outPlanes << endl;
 
+  if(N != 1) {
+    THError("not implemented"); // keep it simple for now....
+  }
+  
+
 // lua:
 //     for p_s, p_d in ipairs(filters.denseBySparse) do
 //      print('')
@@ -444,14 +449,29 @@ static int SPT_convolve(lua_State *L) {
 //      print('p_s', p_s, 'p_d', p_d, 'pcoord ' .. pcoord[1] .. ',' .. pcoord[2])
 //      local currentOutputPlaneIdx = pcoord[1]
 //      local inputPlaneIdx = pcoord[2]
+
+  THLongStorage *output_size = THLongStorage_newWithSize(4);
+  THLongStorage_set(output_size, 0, N);
+  THLongStorage_set(output_size, 1, outPlanes);
+  THLongStorage_set(output_size, 2, H);
+  THLongStorage_set(output_size, 3, W);
+  SPT *output = SPT_new(output_size);
+  THLongStorage_free(output_size);
+  THFloatTensor *currentOutputPlane = 0; // THFloatTensor_newWithSize2d(H, W);
+  int lastOutputPlaneIdx = -1;
   for(map<int, int>::iterator it = second->denseBySparse.begin(); it != second->denseBySparse.end(); it++) {
     int filters_s = it->first;
     int filters_d = it->second;
     cout << "filters_s=" << filters_s << " filters_d=" << filters_d << endl;
     THLongStorage *filters_pcoord = SPT_linearToPcoord(second, filters_d);
-    int outputPlane = THLongStorage_get(filters_pcoord, 0) - 1;
-    int inputPlane = THLongStorage_get(filters_pcoord, 1) - 1;
-    cout << "pcoord " << outputPlane << " " << inputPlane << endl;
+    int outputPlaneIdx = THLongStorage_get(filters_pcoord, 0) - 1;
+    int inputPlaneIdx = THLongStorage_get(filters_pcoord, 1) - 1;
+    cout << "pcoord " << outputPlaneIdx << " " << inputPlaneIdx << endl;
+    if(lastOutputPlaneIdx != outputPlaneIdx) {
+      // allocate new currentOutput, and save to output tensor
+      
+      lastOutputPlaneIdx = outputPlaneIdx;
+    }
   }
 
   THError("not implemented");
