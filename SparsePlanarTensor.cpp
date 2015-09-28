@@ -114,7 +114,6 @@ static string floatTensorToString(THFloatTensor *tensor) {  // since this is imp
   }
   int rows = THFloatTensor_size(tensor, 0);
   int cols = THFloatTensor_size(tensor, 1);
-  cout << "tensortostring " << rows << "x" << cols << endl;
   for(int y = 0; y < rows; y++ ) {
     for(int x = 0; x < cols; x++ ) {
       oss << " " << THFloatTensor_get2d(tensor, y, x);
@@ -233,30 +232,13 @@ static int SPT_addPlane(lua_State *L) {
 static int SPT_copy(lua_State *L) {
   // for now, both the num elements, and the size must match
   // might loosen this restriction in the future
-  cout << "SPT_copy" << endl;
   SPT *self = getSPT(L, 1);
   float tolerance = 0.000001f; // = tolerance or 0.000001
   if(getFloatTensor(L, 2) != 0) {
     THFloatTensor *second = getFloatTensor(L, 2);
-//    THError("not implemented"); // (maybe we could just convert to a double tensor first?  not super efficient of course...)
-//  } else if(getDoubleTensor(L, 2) != 0) {
-//    THDoubleTensor *second = getDoubleTensor(L, 2);
-
-// lua:
-//    local sparse = torch.SparseTensor(dense:size())
-//    local dims = dense:dim()
-//    assert(dims >= 3)
-//    if dims == 3 then
-//      for d=1,dense:size(1) do
-//         if dense[d]:clone():abs():max() >= tolerance then
-//            sparse:addPlane(torch.LongStorage({d}),dense[d])
-//         end
-//      end
-    cout << "got float tensor, freeing planes..." << endl;
     for(int p=0; p < (int)self->planes.size(); p++) {
       THFloatTensor_free(self->planes[p]);
     }
-    cout << "planes freed" << endl;
     self->planes.clear(); // hmmm, do we need to delete these planes?
     self->denseBySparse.clear();
     self->sparseByDense.clear();
@@ -264,19 +246,16 @@ static int SPT_copy(lua_State *L) {
       THError("Num dimensions doesnt match");
     }
     int dims = self->dims;
-    cout << "iterating dims..." << endl;
     for(int d=0; d < dims; d++) {
       if(THFloatTensor_size(second,d) != self->size[d]) {
         THError("tensor sizes dont match");
         return 0;
       }
     }
-    cout << " checked dims" << endl;
     if(dims == 3) {
       for(int d=0; d < dims; d++) {
         float maxvalue = THFloatTensor_maxall(second); // saves cloning, or writing our own method...
         float minvalue = THFloatTensor_minall(second);
-        cout << "min=" << minvalue << " max=" << maxvalue << endl;
         if(maxvalue >= tolerance || minvalue <= -tolerance) {
           THLongStorage *coord = THLongStorage_newWithSize(1);
           THLongStorage_set(coord, 0, d);
@@ -285,34 +264,19 @@ static int SPT_copy(lua_State *L) {
           THFloatTensor_free(plane);
           THLongStorage_free(coord);
         }
-        cout << "after if" << endl;
       }
       push(L, self);
       return 1;
     } else if(dims == 4) {
-      // lua implementation:
-//      local denseLinear = 1
-//      for d=1,dense:size(1) do
-//         local dense1 = dense[d]
-//         for e=1,dense:size(2) do
-//            local dense2 = dense1[e]
-//            if dense2:clone():abs():max() >= tolerance then
-//               sparse:addPlane(torch.LongStorage({d,e}),dense2)
-//            end
-//            denseLinear = denseLinear + 1
-//          end
-//      end      
       int denseLinear = 0;
       int size0 = THFloatTensor_size(second, 0);
       int size1 = THFloatTensor_size(second, 1);
-      cout << " second size " << size0 << "x" << size1 << endl;
       for(int d=0; d < size0; d++) {
         THFloatTensor *dense0 = THFloatTensor_newSelect(second, 0, d);
         for(int e=0; e < size1; e++) {
           THFloatTensor *dense1 = THFloatTensor_newSelect(dense0, 0, e);
           float maxvalue = THFloatTensor_maxall(dense1); // saves cloning, or writing our own method...
           float minvalue = THFloatTensor_minall(dense1);
-          cout << "min=" << minvalue << " max=" << maxvalue << endl;
           if(maxvalue >= tolerance || minvalue <= -tolerance) {
             THLongStorage *coord = THLongStorage_newWithSize(2);
             THLongStorage_set(coord, 0, d);
@@ -320,7 +284,6 @@ static int SPT_copy(lua_State *L) {
             SPT_addPlane(self, coord, dense1);
             THLongStorage_free(coord);
           }
-          cout << "after if" << endl;
           THFloatTensor_free(dense1);
         }
         THFloatTensor_free(dense0);
