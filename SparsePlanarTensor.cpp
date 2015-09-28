@@ -107,7 +107,9 @@ static int SPT_set3d(lua_State *L) {
     int s = self->planes.size();
     self->denseBySparse[s] = d;
     self->sparseByDense[d] = s;
-    self->planes.push_back(THFloatTensor_newWithSize2d(self->size[1], self->size[2]));
+    THFloatTensor *newTensor = THFloatTensor_newWithSize2d(self->size[1], self->size[2]);
+    THFloatTensor_zero(newTensor);
+    self->planes.push_back(newTensor);
   }
   int s = self->sparseByDense.at(x1);
   THFloatTensor_set2d(self->planes[s], x2+1, x3+1, value);
