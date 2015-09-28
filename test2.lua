@@ -34,10 +34,11 @@ print('a[2]', a:get1d(2))
 print('a', a)
 
 -- add
-local b = torch.SparseTensor(torch.LongStorage({3,8,3}))
+local b = torch.SparsePlanarTensor(torch.LongStorage({3,8,3}))
 b:set3d(2,4,1, 7.2)
 print('b', b)
 a:add(b)
+print('after add')
 print('a', a)
 
 assert(b:_pCoordToLinear(torch.LongStorage({2})) == 2)

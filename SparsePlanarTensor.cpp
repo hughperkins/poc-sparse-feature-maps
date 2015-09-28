@@ -76,9 +76,40 @@ static int SPT_factory(lua_State *L) {
   THError("SPT_factory not implemented");
   return 0;
 }
+static string floatTensorToString(THFloatTensor *tensor) {  // since this is implemented in lua in torch7
+  ostringstream oss;
+  int dims = THFloatTensor_nDimension(tensor);
+  if(dims != 2) {
+    THError("not implemented");
+  }
+  int rows = THFloatTensor_size(tensor, 0);
+  int cols = THFloatTensor_size(tensor, 1);
+  cout << "tensortostring " << rows << "x" << cols << endl;
+  for(int y = 0; y < rows; y++ ) {
+    for(int x = 0; x < cols; x++ ) {
+      oss << " " << THFloatTensor_get2d(tensor, y, x);
+    }
+    oss << "\n";
+  }
+  return oss.str();
+}
 static int SPT_tostring(lua_State *L) {
   SPT *self = getSPT(L, 1);
+  if(self->dims != 3) {
+    THError("not implemented");
+  }
   ostringstream oss;
+    // lua:
+  //      for s, d in ipairs(self.denseBySparse) do
+  //         res = res .. 'feature plane [' .. d .. ']\n'
+  //         res = res .. self.planes[s]:__tostring__()
+  //      end
+  for(map<int, int>::iterator it = self->denseBySparse.begin(); it != self->denseBySparse.end(); it++) {
+    int s = it->first;
+    int d = it->second;
+    oss << "(" << (d+1) << ",.,.) =\n";
+    oss << floatTensorToString(self->planes[s]);
+  }
   oss << "[torch.SparsePlanarTensor of size ";
   for(int d=0; d < self->dims; d++) {
     if(d > 0) {
@@ -149,11 +180,37 @@ static int SPT_get1d(lua_State *L) {
   luaT_pushudata(L, self->planes[s], "torch.FloatTensor");
   return 1;
 }
+static int SPT_add(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  SPT *second = getSPT(L, 2);
+
+  // in lua:
+//   for s, d in ipairs(self.denseBySparse) do
+//      local second_s = second.sparseByDense[d]
+//      if second_s ~= nil then
+//         self.planes[s]:add(second.planes[second_s])
+//      end
+//   end
+//   return self
+
+  for(map<int, int>::iterator it = self->denseBySparse.begin(); it != self->denseBySparse.end(); it++) {
+    int s = it->first;
+    int d = it->second;
+    if(second->sparseByDense.find(d) != second->sparseByDense.end()) {
+      int second_s = second->sparseByDense[d];
+      THFloatTensor_cadd(self->planes[s], self->planes[s], 1, second->planes[second_s]);
+    }
+  }
+
+  luaT_pushudata(L, self, "torch.SparsePlanarTensor");
+  return 1;
+}
 static const struct luaL_Reg SPT_funcs [] = {
   {"__tostring__", SPT_tostring},
   {"set3d", SPT_set3d},
   {"get3d", SPT_get3d},
   {"get1d", SPT_get1d},
+  {"add", SPT_add},
 //  {"print", ClKernel_print},
 //  {"getRenderedKernel", ClKernel_getRenderedKernel},
 //  {"getRawKernel", ClKernel_getRawKernel},
