@@ -210,6 +210,7 @@ static int SPT_addPlane(lua_State *L) {
 static int SPT_copy(lua_State *L) {
   // for now, both the num elements, and the size must match
   // might loosen this restriction in the future
+  cout << "SPT_copy" << endl;
   SPT *self = getSPT(L, 1);
   float tolerance = 0.000001f; // = tolerance or 0.000001
   if(getFloatTensor(L, 2) != 0) {
@@ -228,9 +229,11 @@ static int SPT_copy(lua_State *L) {
 //            sparse:addPlane(torch.LongStorage({d}),dense[d])
 //         end
 //      end
+    cout << "got float tensor, freeing planes..." << endl;
     for(int p=0; p < (int)self->planes.size(); p++) {
       THFloatTensor_free(self->planes[p]);
     }
+    cout << "planes freed" << endl;
     self->planes.clear(); // hmmm, do we need to delete these planes?
     self->denseBySparse.clear();
     self->sparseByDense.clear();
@@ -238,16 +241,19 @@ static int SPT_copy(lua_State *L) {
       THError("Num dimensions doesnt match");
     }
     int dims = self->dims;
+    cout << "iterating dims..." << endl;
     for(int d=0; d < dims; d++) {
       if(THFloatTensor_size(second,d) != self->size[d]) {
         THError("tensor sizes dont match");
         return 0;
       }
     }
+    cout << " checked dims" << endl;
     if(dims == 3) {
       for(int d=0; d < dims; d++) {
         float maxvalue = THFloatTensor_maxall(second); // saves cloning, or writing our own method...
         float minvalue = THFloatTensor_minall(second);
+        cout << "min=" << minvalue << " max=" << maxvalue << endl;
         if(maxvalue >= tolerance || minvalue <= -tolerance) {
           THLongStorage *coord = THLongStorage_newWithSize(1);
           THLongStorage_set(coord, 0, d);
@@ -256,7 +262,10 @@ static int SPT_copy(lua_State *L) {
           THFloatTensor_free(plane);
           THLongStorage_free(coord);
         }
+        cout << "after if" << endl;
       }
+      push(L, self);
+      return 1;
     } else {
       THError("Not implemented");
       return 0;
