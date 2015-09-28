@@ -61,6 +61,9 @@ static void push(lua_State *L, THDoubleTensor *tensor) {
 static void push(lua_State *L, THFloatTensor *tensor) {
   luaT_pushudata(L, tensor, "torch.FloatTensor");
 }
+static void push(lua_State *L, THLongStorage *storage) {
+  luaT_pushudata(L, storage, "torch.LongStorage");
+}
 
 static SPT *getSPT(lua_State *L, int index) {
   SPT *self = (SPT *)luaT_checkudata(L, index, "torch.SparsePlanarTensor");
@@ -329,6 +332,40 @@ static int SPT_pcoordToLinear(lua_State *L) {
   lua_pushnumber(L, linear);
   return 1;
 }
+static THLongStorage *SPT_linearToPcoord(SPT *self, int linear) {
+// lua:
+//   local pcoord_dims = self.size:size() - 2
+//   local pcoord = torch.LongStorage(pcoord_dims)
+//   for d=pcoord_dims,1,-1 do
+//      local thiscoord = (linear - 1) % self.size[d] + 1
+//      pcoord[d] = thiscoord
+//      linear = (linear-1) / self.size[d]
+//   end
+//   return pcoord
+  int pcoord_dims = self->dims - 2;
+  if(pcoord_dims < 1) {
+    THError("not implemented");
+  }
+  THLongStorage *pcoord = THLongStorage_newWithSize(pcoord_dims);
+  for(int d = pcoord_dims - 1; d >= 0; d--) {
+    int thisCoord = linear % self->size[d];
+    THLongStorage_set(pcoord, d, thisCoord + 1);
+    linear /= self->size[d];
+  }
+  return pcoord;
+}
+static int SPT_linearToPcoord(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  int linear = luaL_checkint(L, 2);
+  THLongStorage *pcoord = SPT_linearToPcoord(self, linear);
+  push(L, pcoord);
+  return 1;
+
+//  THLongStorage *pcoord = getLongStorage(L, 2);
+//  int linear = SPT_pcoordToLinear(self, pcoord);
+//  lua_pushnumber(L, linear);
+//  return 1;
+}
 static int SPT_get1d(lua_State *L) {
   SPT *self = getSPT(L, 1);
   int x1 = luaL_checkint(L, 2)-1;
@@ -382,6 +419,40 @@ static int SPT_convolve(lua_State *L) {
   // make lots of assumptions....
   // 'self' is an 'input' tensor, with 4 dimensions
   // 'second' is a weight tensor, with 4 dimensions
+  if(self->dims != 4) {
+    THError("not implemented");
+  }
+  if(second->dims != 4) {
+    THError("not implemented");
+  }
+  int N = self->size[0];
+  int inPlanes = self->size[1];
+  int H = self->size[2];
+  int W = self->size[3];
+  if(inPlanes != second->size[1]) {
+    THError("input planes, and weight input planes mismatch");
+  }
+  int outPlanes = second->size[0];
+  cout << inPlanes << "->" << outPlanes << endl;
+
+// lua:
+//     for p_s, p_d in ipairs(filters.denseBySparse) do
+//      print('')
+//      print('============================================')
+//--      print('p_s', p_s, 'p_d', p_d)
+//      local pcoord = filters:linearToPcoord(p_d)
+//      print('p_s', p_s, 'p_d', p_d, 'pcoord ' .. pcoord[1] .. ',' .. pcoord[2])
+//      local currentOutputPlaneIdx = pcoord[1]
+//      local inputPlaneIdx = pcoord[2]
+  for(map<int, int>::iterator it = second->denseBySparse.begin(); it != second->denseBySparse.end(); it++) {
+    int filters_s = it->first;
+    int filters_d = it->second;
+    cout << "filters_s=" << filters_s << " filters_d=" << filters_d << endl;
+    THLongStorage *filters_pcoord = SPT_linearToPcoord(second, filters_d);
+    int outputPlane = THLongStorage_get(filters_pcoord, 0) - 1;
+    int inputPlane = THLongStorage_get(filters_pcoord, 1) - 1;
+    cout << "pcoord " << outputPlane << " " << inputPlane << endl;
+  }
 
   THError("not implemented");
   luaT_pushudata(L, self, "torch.SparsePlanarTensor");
@@ -398,6 +469,7 @@ static const struct luaL_Reg SPT_funcs [] = {
   {"addPlane", SPT_addPlane},
   {"getPlane", SPT_getPlane},
   {"pcoordToLinear", SPT_pcoordToLinear},
+  {"linearToPcoord", SPT_linearToPcoord},
   {"convolve", SPT_convolve},
   {0,0}
 };
