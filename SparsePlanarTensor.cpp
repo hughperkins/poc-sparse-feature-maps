@@ -217,12 +217,28 @@ static int SPT_add(lua_State *L) {
   luaT_pushudata(L, self, "torch.SparsePlanarTensor");
   return 1;
 }
+static int SPT_cmul(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  SPT *second = getSPT(L, 2);
+  for(map<int, int>::iterator it = self->denseBySparse.begin(); it != self->denseBySparse.end(); it++) {
+    int s = it->first;
+    int d = it->second;
+    if(second->sparseByDense.find(d) != second->sparseByDense.end()) {
+      int second_s = second->sparseByDense[d];
+      THFloatTensor_cmul(self->planes[s], self->planes[s], second->planes[second_s]);
+    }
+  }
+
+  luaT_pushudata(L, self, "torch.SparsePlanarTensor");
+  return 1;
+}
 static const struct luaL_Reg SPT_funcs [] = {
   {"__tostring__", SPT_tostring},
   {"set3d", SPT_set3d},
   {"get3d", SPT_get3d},
   {"get1d", SPT_get1d},
   {"add", SPT_add},
+  {"cmul", SPT_cmul},
   {"pcoordToLinear", SPT_pcoordToLinear},
   {0,0}
 };
