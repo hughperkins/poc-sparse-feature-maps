@@ -125,24 +125,46 @@ static string floatTensorToString(THFloatTensor *tensor) {  // since this is imp
 }
 static int SPT_tostring(lua_State *L) {
   SPT *self = getSPT(L, 1);
-  if(self->dims != 3) {
+  ostringstream oss;
+  if(self->dims == 3) {
+    for(map<int, int>::iterator it = self->denseBySparse.begin(); it != self->denseBySparse.end(); it++) {
+      int s = it->first;
+      int d = it->second;
+      oss << "(" << (d+1) << ",.,.) =\n";
+      oss << floatTensorToString(self->planes[s]);
+    }
+    oss << "[torch.SparsePlanarTensor of size ";
+    for(int d=0; d < self->dims; d++) {
+      if(d > 0) {
+        oss << "x";
+      }
+      oss << self->size[d];
+    }
+    oss << "]";
+  } else if(self->dims == 4){
+    for(map<int, int>::iterator it = self->denseBySparse.begin(); it != self->denseBySparse.end(); it++) {
+      int s = it->first;
+      int d = it->second;
+      THLongStorage *dcoords = THLongStorage_newWithSize(2);
+      int x0 = d / self->size[1];
+      int x1 = d % self->size[1];
+//      THLongStorage_set(dcoords, 0, x0);
+//      THLongStorage_set(dcoords, 1, x1);
+      THLongStorage_free(dcoords);
+      oss << "(" << (x0+1) << "," << (x1+1) << ",.,.) =\n";
+      oss << floatTensorToString(self->planes[s]);
+    }
+// lua:
+//      for s, dlinear in ipairs(self.denseBySparse) do
+//         local dcoords = torch.LongStorage(2)
+//         dcoords[1] = dlinear / self.size[2]
+//         dcoords[2] = dlinear % self.size[2]
+//         res = res .. 'feature plane [' .. dcoords[1] .. '][' .. dcoords[2] .. ']\n'
+//         res = res .. self.planes[s]:__tostring__()
+//      end
+  } else {
     THError("not implemented");
   }
-  ostringstream oss;
-  for(map<int, int>::iterator it = self->denseBySparse.begin(); it != self->denseBySparse.end(); it++) {
-    int s = it->first;
-    int d = it->second;
-    oss << "(" << (d+1) << ",.,.) =\n";
-    oss << floatTensorToString(self->planes[s]);
-  }
-  oss << "[torch.SparsePlanarTensor of size ";
-  for(int d=0; d < self->dims; d++) {
-    if(d > 0) {
-      oss << "x";
-    }
-    oss << self->size[d];
-  }
-  oss << "]";
   lua_pushstring(L, oss.str().c_str());
   return 1;
 }
@@ -266,6 +288,43 @@ static int SPT_copy(lua_State *L) {
       }
       push(L, self);
       return 1;
+    } else if(dims == 4) {
+      // lua implementation:
+//      local denseLinear = 1
+//      for d=1,dense:size(1) do
+//         local dense1 = dense[d]
+//         for e=1,dense:size(2) do
+//            local dense2 = dense1[e]
+//            if dense2:clone():abs():max() >= tolerance then
+//               sparse:addPlane(torch.LongStorage({d,e}),dense2)
+//            end
+//            denseLinear = denseLinear + 1
+//          end
+//      end      
+      int denseLinear = 0;
+      int size0 = THFloatTensor_size(second, 0);
+      int size1 = THFloatTensor_size(second, 1);
+      cout << " second size " << size0 << "x" << size1 << endl;
+      for(int d=0; d < size0; d++) {
+        THFloatTensor *dense0 = THFloatTensor_newSelect(second, 0, d);
+        for(int e=0; e < size1; e++) {
+          THFloatTensor *dense1 = THFloatTensor_newSelect(dense0, 0, e);
+          float maxvalue = THFloatTensor_maxall(dense1); // saves cloning, or writing our own method...
+          float minvalue = THFloatTensor_minall(dense1);
+          cout << "min=" << minvalue << " max=" << maxvalue << endl;
+          if(maxvalue >= tolerance || minvalue <= -tolerance) {
+            THLongStorage *coord = THLongStorage_newWithSize(2);
+            THLongStorage_set(coord, 0, d);
+            THLongStorage_set(coord, 1, e);
+            SPT_addPlane(self, coord, dense1);
+            THLongStorage_free(coord);
+          }
+          cout << "after if" << endl;
+          THFloatTensor_free(dense1);
+        }
+        THFloatTensor_free(dense0);
+      }
+      return 0;
     } else {
       THError("Not implemented");
       return 0;
@@ -285,6 +344,8 @@ static int SPT_pcoordToLinear(SPT *self, THLongStorage *pcoord) {
   }
   if(pcoord_dims == 1) {
     return THLongStorage_get(pcoord, 0);
+  } else if(pcoord_dims == 2){
+    return THLongStorage_get(pcoord, 0) * self->size[1] + THLongStorage_get(pcoord, 1);
   } else {
     THError("not implemented");
   }
