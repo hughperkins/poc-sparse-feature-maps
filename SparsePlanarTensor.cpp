@@ -99,33 +99,42 @@ static int SPT_set3d(lua_State *L) {
   float value = luaL_checknumber(L,5);
 
   int d = x1;
-// lua version:
-//     local sparse = self.sparseByDense[p]
-//   if sparse == nil then
-//      sparse = #self.planes + 1
-//      self.denseBySparse[sparse] = p
-//      self.sparseByDense[p] = sparse
-//      self.planes[sparse] = torch.Tensor(self.rows, self.cols)
-//      self.planes[sparse]:fill(0)
-//   end
-//   self.planes[sparse][row][col] = value
   if(self->dims != 3) {
     THError("cant use set3d on non-3d tensor");
   }
   if(self->sparseByDense.find(d) == self->sparseByDense.end()) {
-     // create new plane
-     int s = self->planes.size();
-     self->denseBySparse[s] = d;
-     self->sparseByDense[d] = s;
-     self->planes.push_back(THFloatTensor_newWithSize2d(self->size[1], self->size[2]));
+    // create new plane
+    int s = self->planes.size();
+    self->denseBySparse[s] = d;
+    self->sparseByDense[d] = s;
+    self->planes.push_back(THFloatTensor_newWithSize2d(self->size[1], self->size[2]));
   }
   int s = self->sparseByDense.at(x1);
+  THFloatTensor_set2d(self->planes[s], x2+1, x3+1, value);
   return 0;
 }
+static int SPT_get3d(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  int x1 = luaL_checkint(L, 2)-1;
+  int x2 = luaL_checkint(L, 3)-1;
+  int x3 = luaL_checkint(L, 4)-1;
 
+  int d = x1;
+  if(self->dims != 3) {
+    THError("cant use get3d on non-3d tensor");
+  }
+  if(self->sparseByDense.find(d) == self->sparseByDense.end()) {
+    lua_pushnumber(L, 0);
+    return 1;
+  }
+  int s = self->sparseByDense.at(x1);
+  lua_pushnumber(L, THFloatTensor_get2d(self->planes[s], x2+1, x3+1));
+  return 1;
+}
 static const struct luaL_Reg SPT_funcs [] = {
   {"__tostring__", SPT_tostring},
   {"set3d", SPT_set3d},
+  {"get3d", SPT_get3d},
 //  {"print", ClKernel_print},
 //  {"getRenderedKernel", ClKernel_getRenderedKernel},
 //  {"getRawKernel", ClKernel_getRawKernel},
