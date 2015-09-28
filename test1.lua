@@ -91,6 +91,15 @@ function torch.SparseTensor:addPlane(p_coord, plane)  -- p_coord is the cooridna
    return self
 end
 
+function torch.SparseTensor:getPlane(p_coord)
+   local linearIndex = self:_pCoordToLinear(p_coord)
+   local s = self.sparseByDense[linearIndex]
+   if s == nil then
+      return nil -- ? or return empty plane?
+   end
+   return self.planes[s]
+end
+
 function torch.SparseTensor:get3d(p, row, col)
    local sparse = self.sparseByDense[p]
    if sparse == nil then
@@ -330,10 +339,10 @@ print('b_sparse', b_sparse)
 function sparse_convolve(input, filters)
    local outplanes = filters.size[1]
    local inplanes = filters.size[2]
-   local rows = filters.size[3]
-   local cols = filters.size[4]
-   print(outplanes .. '->' .. inplanes .. ' ' .. rows .. 'x' .. cols)
-   output = torch.SparseTensor(torch.LongStorage({outplanes, rows, cols}))
+   local kH = filters.size[3]
+   local kW = filters.size[4]
+   print(outplanes .. '->' .. inplanes .. ' ' .. kH .. 'x' .. kW)
+   local output = torch.SparseTensor(torch.LongStorage({outplanes, kH, kW}))
    -- brute force for now...
    -- so we have:
    -- input is 3d tensor, where first dimension is number of input planes
@@ -345,11 +354,41 @@ function sparse_convolve(input, filters)
    --  - we should convolve each of the input planes with one of the filter planes
    --    ..... and add them together
    -- let's start by listing the coordinates of the available output planes, in the weights:
+   local lastOutPlane = filters:linearToPcoord(filters.denseBySparse[1])[1]
+   print('lastOutPlane', lastOutPlane)
+
+   local convolver = nn.SpatialConvolutionMM(1, 1, kH, kW, 1, 1, kH/2, kW/2)
+   convolver.bias:zero()
    for p_s, p_d in ipairs(filters.denseBySparse) do
+      print('')
+      print('============================================')
 --      print('p_s', p_s, 'p_d', p_d)
       local pcoord = filters:linearToPcoord(p_d)
       print('p_s', p_s, 'p_d', p_d, 'pcoord ' .. pcoord[1] .. ',' .. pcoord[2])
+      local currentOutputPlaneIdx = pcoord[1]
+      local inputPlaneIdx = pcoord[2]
+      if currentOutputPlaneIdx ~= lastOldPlane then
+         -- finished the output feature, so write it to output, and then create new empty
+         -- out plane
+         local outPlane = filters:getPlane(pcoord):clone()
+         output:addPlane(torch.LongStorage({currentOutputPlaneIdx}), outPlane)
+      end
+      local outPlane = output:getPlane(torch.LongStorage({currentOutputPlaneIdx}))
+      print('outPlane', outPlane)
+      -- convolve input with filter plane, and add to output plane
+      local weightPlane = filters:getPlane(pcoord)
+      print('weightPlane', weightPlane)
+      local weightPlaneView = weightPlane:view(torch.LongStorage({1,1*kH*kW}))
+      print('weightPlaneView', weightPlaneView)
+      convolver.weight = weightPlaneView
+      local inputPlane = input:getPlane(torch.LongStorage({inputPlaneIdx}))
+      print('inputPlane', inputPlane)
+      local inputPlane_view = inputPlane:view(torch.LongStorage({1,1,inputPlane:size(1), inputPlane:size(2)}))
+      print('inputPlane_view', inputPlane_view)
+      local thisConvRes = convolver:forward(inputPlane_view)
+      local lastOldPlane = currentOutputPlaneIdx
    end
+   return output
 end
 
 c_sparse = sparse_convolve(a_sparse, b_sparse)
