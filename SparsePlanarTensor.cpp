@@ -131,10 +131,27 @@ static int SPT_get3d(lua_State *L) {
   lua_pushnumber(L, THFloatTensor_get2d(self->planes[s], x2+1, x3+1));
   return 1;
 }
+static int SPT_get1d(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  int x1 = luaL_checkint(L, 2)-1;
+
+  int d = x1;
+  if(self->dims != 3) {
+    THError("Not implemented");
+  }
+  if(self->sparseByDense.find(d) == self->sparseByDense.end()) {
+    lua_pushnil(L); // not sure if this is the best way, but has its good points
+    return 1;
+  }
+  int s = self->sparseByDense.at(x1);
+  luaT_pushudata(L, self->planes[s], "torch.FloatTensor");
+  return 1;
+}
 static const struct luaL_Reg SPT_funcs [] = {
   {"__tostring__", SPT_tostring},
   {"set3d", SPT_set3d},
   {"get3d", SPT_get3d},
+  {"get1d", SPT_get1d},
 //  {"print", ClKernel_print},
 //  {"getRenderedKernel", ClKernel_getRenderedKernel},
 //  {"getRawKernel", ClKernel_getRawKernel},
