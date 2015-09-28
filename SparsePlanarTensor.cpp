@@ -12,6 +12,7 @@ extern "C" {
 #include <iostream>
 #include <vector>
 #include <map>
+#include <sstream>
 using namespace std;
 
 static THLongStorage *getLongStorageNoCheck(lua_State *L, int index) {
@@ -72,8 +73,24 @@ static int SPT_factory(lua_State *L) {
   THError("SPT_factory not implemented");
   return 0;
 }
+static int SPT_tostring(lua_State *L) {
+  SPT *self = (SPT *)luaT_checkudata(L, 1, "torch.SparsePlanarTensor");
+//  cout << "SPT_tostring()" << endl;
+  ostringstream oss;
+  oss << "[torch.SparsePlanarTensor of size ";
+  for(int d=0; d < self->dims; d++) {
+    if(d > 0) {
+      oss << "x";
+    }
+    oss << self->size[d];
+  }
+  oss << "]";
+  lua_pushstring(L, oss.str().c_str());
+  return 1;
+}
 
 static const struct luaL_Reg SPT_funcs [] = {
+  {"__tostring__", SPT_tostring},
 //  {"print", ClKernel_print},
 //  {"getRenderedKernel", ClKernel_getRenderedKernel},
 //  {"getRawKernel", ClKernel_getRawKernel},

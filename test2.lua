@@ -19,6 +19,7 @@ require 'sparseplanar'
 print('imported sparseplanar')
 
 local a = torch.SparsePlanarTensor(torch.LongStorage({3,8,3}))
+print('a', a)
 a:set3d(2,4,1, 4.5)
 print('a[2]', a:get1d(2))
 print('a[2][4][1]', a:get3d(2,4,1))
