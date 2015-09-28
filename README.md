@@ -19,7 +19,7 @@ Multiple sparse representations exist. All have their own good and bad points.  
 - facilitates implementation
 - can continue to use standard GPU implementatinos for convolution etc
 
-On the downside, it's quite non-standard, and might not achieve the same sparsity, in terms of actual storage used, compared to some more standard representation
+On the downside, it's quite non-standard, and might not achieve the same sparsity, in terms of actual storage used, compared to some more standard representation.  I'm a bit concerned too that it will have all of the implementation issues that 0-norms have, ie non-differentiability, exponentially combinatorial complexity etc :-(
 
 ### Implementation
 
