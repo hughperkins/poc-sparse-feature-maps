@@ -42,5 +42,5 @@ The weights must be sparse too, otherwise they will be massive (I guess?), or at
 
 For making the activations sparse, we can use KL divergence, eg http://ufldl.stanford.edu/wiki/index.php/Autoencoders_and_Sparsity.
 
-*However this doesn't address how to make the weights sparse*
+*However this doesn't address how to make the weights sparse*.  Also, ideally we'd enforce sparseness on a per-plane basis, though, this might encourage the difficulties associated with 0-norms, combinatorial complexity etc.
 
