@@ -12,14 +12,6 @@ extern "C" {
 #include <sstream>
 using namespace std;
 
-static THLongStorage *getLongStorage(lua_State *L, int index) {
-  void *longStorageVoid = luaT_checkudata(L, index, "torch.LongStorage");
-  return (THLongStorage *)longStorageVoid;
-}
-static THLongStorage *getLongStorageNoCheck(lua_State *L, int index) {
-  void *longStorageVoid = luaT_toudata(L, index, "torch.LongStorage");
-  return (THLongStorage *)longStorageVoid;
-}
 class SPT {
 public:
   int refCount;
@@ -33,6 +25,43 @@ public:
   ~SPT() {
   }
 };
+
+static int SPT_pcoordToLinear(SPT *self, THLongStorage *pcoord);
+
+static THLongStorage *getLongStorage(lua_State *L, int index) {
+  void *longStorageVoid = luaT_checkudata(L, index, "torch.LongStorage");
+  return (THLongStorage *)longStorageVoid;
+}
+static THLongStorage *getLongStorageNoCheck(lua_State *L, int index) {
+  void *longStorageVoid = luaT_toudata(L, index, "torch.LongStorage");
+  return (THLongStorage *)longStorageVoid;
+}
+static THFloatTensor *getFloatTensor(lua_State *L, int index) {
+  void *tensorVoid = luaT_checkudata(L, index, "torch.FloatTensor");
+  return (THFloatTensor *)tensorVoid;
+}
+static THFloatTensor *getFloatTensorNoCheck(lua_State *L, int index) {
+  void *tensorVoid = luaT_toudata(L, index, "torch.FloatTensor");
+  return (THFloatTensor *)tensorVoid;
+}
+static THDoubleTensor *getDoubleTensorNoCheck(lua_State *L, int index) {
+  void *tensorVoid = luaT_toudata(L, index, "torch.DoubleTensor");
+  return (THDoubleTensor *)tensorVoid;
+}
+static THDoubleTensor *getDoubleTensor(lua_State *L, int index) {
+  void *tensorVoid = luaT_checkudata(L, index, "torch.DoubleTensor");
+  return (THDoubleTensor *)tensorVoid;
+}
+static void push(lua_State *L, SPT *spt) {
+  luaT_pushudata(L, spt, "torch.SparsePlanarTensor");
+}
+static void push(lua_State *L, THDoubleTensor *tensor) {
+  luaT_pushudata(L, tensor, "torch.DoubleTensor");
+}
+static void push(lua_State *L, THFloatTensor *tensor) {
+  luaT_pushudata(L, tensor, "torch.FloatTensor");
+}
+
 static SPT *getSPT(lua_State *L, int index) {
   SPT *self = (SPT *)luaT_checkudata(L, index, "torch.SparsePlanarTensor");
   return self;
@@ -160,31 +189,103 @@ static int SPT_get3d(lua_State *L) {
   lua_pushnumber(L, THFloatTensor_get2d(self->planes[s], x2+1, x3+1));
   return 1;
 }
+static void SPT_addPlane(SPT *self, THLongStorage *pcoord, THFloatTensor *second) {
+  int linearIndex = SPT_pcoordToLinear(self, pcoord);
+  int s = self->planes.size();
+  self->denseBySparse[s] = linearIndex;
+  self->sparseByDense[linearIndex] = s;
+  int dims = self->dims;
+  int H = self->size[dims-2];
+  int W = self->size[dims-1];
+  THFloatTensor *plane = THFloatTensor_newWithSize2d(H, W);
+  self->planes.push_back(plane);
+}
+static int SPT_addPlane(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  THLongStorage *pcoord = getLongStorage(L, 2);
+  THFloatTensor *second = getFloatTensor(L, 3); // probalby should support float too
+  SPT_addPlane(self, pcoord, second);
+  push(L, self);
+}
+static int SPT_copy(lua_State *L) {
+  // for now, both the num elements, and the size must match
+  // might loosen this restriction in the future
+  SPT *self = getSPT(L, 1);
+  float tolerance = 0.000001f; // = tolerance or 0.000001
+  if(getFloatTensor(L, 2) != 0) {
+    THFloatTensor *second = getFloatTensor(L, 2);
+//    THError("not implemented"); // (maybe we could just convert to a double tensor first?  not super efficient of course...)
+//  } else if(getDoubleTensor(L, 2) != 0) {
+//    THDoubleTensor *second = getDoubleTensor(L, 2);
+
+// lua:
+//    local sparse = torch.SparseTensor(dense:size())
+//    local dims = dense:dim()
+//    assert(dims >= 3)
+//    if dims == 3 then
+//      for d=1,dense:size(1) do
+//         if dense[d]:clone():abs():max() >= tolerance then
+//            sparse:addPlane(torch.LongStorage({d}),dense[d])
+//         end
+//      end
+    for(int p=0; p < (int)self->planes.size(); p++) {
+      THFloatTensor_free(self->planes[p]);
+    }
+    self->planes.clear(); // hmmm, do we need to delete these planes?
+    self->denseBySparse.clear();
+    self->sparseByDense.clear();
+    if(self->dims != THFloatTensor_nDimension(second)) {
+      THError("Num dimensions doesnt match");
+    }
+    int dims = self->dims;
+    for(int d=0; d < dims; d++) {
+      if(THFloatTensor_size(second,d) != self->size[d]) {
+        THError("tensor sizes dont match");
+        return 0;
+      }
+    }
+    if(dims == 3) {
+      for(int d=0; d < dims; d++) {
+        float maxvalue = THFloatTensor_maxall(second); // saves cloning, or writing our own method...
+        float minvalue = THFloatTensor_minall(second);
+        if(maxvalue >= tolerance || minvalue <= -tolerance) {
+          THLongStorage *coord = THLongStorage_newWithSize(1);
+          THLongStorage_set(coord, 0, d);
+          THFloatTensor *plane = THFloatTensor_newSelect(second, 0, d);
+          SPT_addPlane(self, coord, plane);
+          THFloatTensor_free(plane);
+          THLongStorage_free(coord);
+        }
+      }
+    } else {
+      THError("Not implemented");
+      return 0;
+    }
+  } else {
+    THError("Not implemented");
+    return 0;
+  }
+}
 // input: pcoord, a longstorage.  output: an integer, representing
 // the linear position of the plane iwthin the tensor, if last two dimensions
 // of tensor lopped off (reduced to size one, then removed)
-static int SPT_pcoordToLinear(lua_State *L) {
-  SPT *self = getSPT(L, 1);
-  THLongStorage *pcoord = getLongStorage(L, 2);
-// in lua:
-//   local sparse_dims = p_coord:size()
-//   if sparse_dims == 1 then
-//      return p_coord[1]
-//   elseif sparse_dims == 2 then
-//      return p_coord[1] * self.size[2] + p_coord[2]
-//   else
-//      error("not implemented")
-//   end
+static int SPT_pcoordToLinear(SPT *self, THLongStorage *pcoord) {
   int pcoord_dims = THLongStorage_size(pcoord);
   if(pcoord_dims + 2 != self->dims) {
     THError("pcoord dimnesions must be 2 less than sparse tensor dimensions");
   }
   if(pcoord_dims == 1) {
-    lua_pushnumber(L, THLongStorage_get(pcoord, 0));
-    return 1;
+    return THLongStorage_get(pcoord, 0);
   } else {
     THError("not implemented");
   }
+}
+static int SPT_pcoordToLinear(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  THLongStorage *pcoord = getLongStorage(L, 2);
+  int linear = SPT_pcoordToLinear(self, pcoord);
+  lua_pushnumber(L, linear);
+  return 1;
 }
 static int SPT_get1d(lua_State *L) {
   SPT *self = getSPT(L, 1);
@@ -237,8 +338,10 @@ static const struct luaL_Reg SPT_funcs [] = {
   {"set3d", SPT_set3d},
   {"get3d", SPT_get3d},
   {"get1d", SPT_get1d},
+  {"copy", SPT_copy},
   {"add", SPT_add},
   {"cmul", SPT_cmul},
+  {"addPlane", SPT_addPlane},
   {"pcoordToLinear", SPT_pcoordToLinear},
   {0,0}
 };

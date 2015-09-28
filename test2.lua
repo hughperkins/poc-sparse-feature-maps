@@ -56,7 +56,7 @@ print('a', a)
 -- then do the same with a sparse version
 -- and compare
 
-a = torch.Tensor(5,3,4):uniform()
+a = torch.FloatTensor(5,3,4):uniform()
 a[2]:zero()
 a[4]:zero()
 --b = torch.Tensor(10,12,15):uniform()
@@ -65,7 +65,7 @@ a[4]:zero()
 --a[6]:zero()
 --a[9]:zero()
 
-mlp = nn.SpatialConvolutionMM(5,5,3,3,1,1,1,1)
+mlp = nn.SpatialConvolutionMM(5,5,3,3,1,1,1,1):float()
 -- hmmm.... b is ... weights?
 local b = mlp.weight
 b[1]:zero()
@@ -77,7 +77,9 @@ mlp.bias:zero()
 local out = mlp:forward(a)
 print('out', out)
 
-a_sparse = torch.SparsePlanarTensor.fromDense(a)
+--a_sparse = torch.SparsePlanarTensor.fromDense(a)
+a_sparse = a:sparsePlanar()
+print('after convert from floattensor to sparse')
 print('a_sparse', a_sparse)
 
 print('b:size()', b:size())
@@ -85,7 +87,8 @@ print('b:numel()', b:numel())
 print('5*5*3*3', 5*5*3*3)
 b_view = b:view(5,5,3,3)
 print('b_view:size()', b_view:size())
-b_sparse = torch.SparseTensor.fromDense(b_view)
+--b_sparse = torch.SparseTensor.fromDense(b_view)
+b_sparse = b_view:sparsePlanar()
 print('=========')
 print('b_view', b_view)
 print('=========')
