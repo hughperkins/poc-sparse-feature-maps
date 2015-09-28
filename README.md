@@ -38,7 +38,7 @@ Two things need to be made sparse:
 - the activations
 - the weights
 
-The weights must be sparse too, otherwise they will be massive (I guess?), or at least, will need a lot of calculations.
+The weights must be sparse too, otherwise they will be massive (I guess?), or at least, propagation will need a lot of calculations.
 
 For making the activations sparse, we can use KL divergence, eg http://ufldl.stanford.edu/wiki/index.php/Autoencoders_and_Sparsity.
 
