@@ -1,10 +1,7 @@
 #include "TH.h"
-//#include "luaT.h"
 
 extern "C" {
   #include "lua.h"
-  //#include <lualib.h>
-  //#include <lauxlib.h>
   #include "utils.h"
   #include "luaT.h"
 }
@@ -15,6 +12,10 @@ extern "C" {
 #include <sstream>
 using namespace std;
 
+static THLongStorage *getLongStorage(lua_State *L, int index) {
+  void *longStorageVoid = luaT_checkudata(L, index, "torch.LongStorage");
+  return (THLongStorage *)longStorageVoid;
+}
 static THLongStorage *getLongStorageNoCheck(lua_State *L, int index) {
   void *longStorageVoid = luaT_toudata(L, index, "torch.LongStorage");
   return (THLongStorage *)longStorageVoid;
@@ -99,11 +100,6 @@ static int SPT_tostring(lua_State *L) {
     THError("not implemented");
   }
   ostringstream oss;
-    // lua:
-  //      for s, d in ipairs(self.denseBySparse) do
-  //         res = res .. 'feature plane [' .. d .. ']\n'
-  //         res = res .. self.planes[s]:__tostring__()
-  //      end
   for(map<int, int>::iterator it = self->denseBySparse.begin(); it != self->denseBySparse.end(); it++) {
     int s = it->first;
     int d = it->second;
@@ -164,6 +160,32 @@ static int SPT_get3d(lua_State *L) {
   lua_pushnumber(L, THFloatTensor_get2d(self->planes[s], x2+1, x3+1));
   return 1;
 }
+// input: pcoord, a longstorage.  output: an integer, representing
+// the linear position of the plane iwthin the tensor, if last two dimensions
+// of tensor lopped off (reduced to size one, then removed)
+static int SPT_pcoordToLinear(lua_State *L) {
+  SPT *self = getSPT(L, 1);
+  THLongStorage *pcoord = getLongStorage(L, 2);
+// in lua:
+//   local sparse_dims = p_coord:size()
+//   if sparse_dims == 1 then
+//      return p_coord[1]
+//   elseif sparse_dims == 2 then
+//      return p_coord[1] * self.size[2] + p_coord[2]
+//   else
+//      error("not implemented")
+//   end
+  int pcoord_dims = THLongStorage_size(pcoord);
+  if(pcoord_dims + 2 != self->dims) {
+    THError("pcoord dimnesions must be 2 less than sparse tensor dimensions");
+  }
+  if(pcoord_dims == 1) {
+    lua_pushnumber(L, THLongStorage_get(pcoord, 0));
+    return 1;
+  } else {
+    THError("not implemented");
+  }
+}
 static int SPT_get1d(lua_State *L) {
   SPT *self = getSPT(L, 1);
   int x1 = luaL_checkint(L, 2)-1;
@@ -183,16 +205,6 @@ static int SPT_get1d(lua_State *L) {
 static int SPT_add(lua_State *L) {
   SPT *self = getSPT(L, 1);
   SPT *second = getSPT(L, 2);
-
-  // in lua:
-//   for s, d in ipairs(self.denseBySparse) do
-//      local second_s = second.sparseByDense[d]
-//      if second_s ~= nil then
-//         self.planes[s]:add(second.planes[second_s])
-//      end
-//   end
-//   return self
-
   for(map<int, int>::iterator it = self->denseBySparse.begin(); it != self->denseBySparse.end(); it++) {
     int s = it->first;
     int d = it->second;
@@ -211,10 +223,7 @@ static const struct luaL_Reg SPT_funcs [] = {
   {"get3d", SPT_get3d},
   {"get1d", SPT_get1d},
   {"add", SPT_add},
-//  {"print", ClKernel_print},
-//  {"getRenderedKernel", ClKernel_getRenderedKernel},
-//  {"getRawKernel", ClKernel_getRawKernel},
-//  {"run", ClKernel_run},
+  {"pcoordToLinear", SPT_pcoordToLinear},
   {0,0}
 };
 void SparsePlanarTensor_init(lua_State *L) {

@@ -41,7 +41,9 @@ a:add(b)
 print('after add')
 print('a', a)
 
-assert(b:_pCoordToLinear(torch.LongStorage({2})) == 2)
+local linear = b:pcoordToLinear(torch.LongStorage({2}))
+print('linear', linear)
+assert(b:pcoordToLinear(torch.LongStorage({2})) == 2)
 
 -- multiply by element
 a:cmul(b)
