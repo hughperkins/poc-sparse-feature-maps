@@ -70,6 +70,17 @@ function torch.SparseTensor:_pCoordToLinear(p_coord)
 --   return linear
 end
 
+function torch.SparseTensor:linearToPcoord(linear)
+   local pcoord_dims = self.size:size() - 2
+   local pcoord = torch.LongStorage(pcoord_dims)
+   for d=pcoord_dims,1,-1 do
+      local thiscoord = (linear - 1) % self.size[d] + 1
+      pcoord[d] = thiscoord
+      linear = (linear-1) / self.size[d]
+   end
+   return pcoord
+end
+
 function torch.SparseTensor:addPlane(p_coord, plane)  -- p_coord is the cooridnates without hte last two cordinates, eg if this tensor is 4d, p_coord will be 2d
    print('addPlane p_coord', p_coord, 'plane', plane)
    local linearIndex = self:_pCoordToLinear(p_coord)
@@ -316,4 +327,30 @@ print('b_view', b_view)
 print('=========')
 print('b_sparse', b_sparse)
 
+function sparse_convolve(input, filters)
+   local outplanes = filters.size[1]
+   local inplanes = filters.size[2]
+   local rows = filters.size[3]
+   local cols = filters.size[4]
+   print(outplanes .. '->' .. inplanes .. ' ' .. rows .. 'x' .. cols)
+   output = torch.SparseTensor(torch.LongStorage({outplanes, rows, cols}))
+   -- brute force for now...
+   -- so we have:
+   -- input is 3d tensor, where first dimension is number of input planes
+   -- we will create an output tensor, 3d, where first dimension is number of output planes
+   -- weights is 4 dimensional:
+   -- - first dimension is number of output planes
+   -- - second dimension is number of input planes
+   -- for each output plane:
+   --  - we should convolve each of the input planes with one of the filter planes
+   --    ..... and add them together
+   -- let's start by listing the coordinates of the available output planes, in the weights:
+   for p_s, p_d in ipairs(filters.denseBySparse) do
+--      print('p_s', p_s, 'p_d', p_d)
+      local pcoord = filters:linearToPcoord(p_d)
+      print('p_s', p_s, 'p_d', p_d, 'pcoord ' .. pcoord[1] .. ',' .. pcoord[2])
+   end
+end
+
+c_sparse = sparse_convolve(a_sparse, b_sparse)
 
