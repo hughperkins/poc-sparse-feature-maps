@@ -10,11 +10,23 @@ extern "C" {
 }
 
 #include <iostream>
+#include <vector>
+#include <map>
 using namespace std;
+
+static THLongStorage *getLongStorageNoCheck(lua_State *L, int index) {
+  void *longStorageVoid = luaT_toudata(L, index, "torch.LongStorage");
+  return (THLongStorage *)longStorageVoid;
+}
 
 class SPT {
 public:
   int refCount;
+  vector< THFloatTensor * > planes;
+  map< int, int > denseBySparse;
+  map< int, int > sparseByDense;
+  int dims;
+  vector<int> size;
   SPT() {
   }
   ~SPT() {
@@ -28,12 +40,20 @@ static int SPT_new(lua_State *L) {
   self = new(self) SPT();
   SPT_rawInit(self);
 
-  if(lua_type(L, 1) == -1) { // not sure what the type should be right now :-P
+  if(getLongStorageNoCheck(L, 1) != 0) {
+    THLongStorage *size = getLongStorageNoCheck(L, 1);
+    cout << "got size" << endl;
+    int dims = THLongStorage_size(size);
+    cout << "size.size " << dims << endl;
+    self->dims = dims;
+    for(int d=0; d<dims; d++) {
+       self->size.push_back(THLongStorage_get(size, d));
+    }
   } else {
     THError("First parameter to torch.SparsePlanarTensor should be a longstorage");
   }
 
-  luaT_pushudata(L, self, "torch.ClKernel");
+  luaT_pushudata(L, self, "torch.SparsePlanarTensor");
   return 1;
 }
 static int SPT_free(lua_State *L) {
